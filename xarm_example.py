@@ -356,13 +356,40 @@ class Xarm_example(Node):
         return self.xarm_modbus_data(data,wait=False)
 
     def xarm_set_gripper_speed_percent(self, percent):
-        data = [
-            0x01,       # slave ID
-            0x10,       # function code: Write Multiple Registers
-            0x00, 0x00, # start address: register 0
-            0x00, 0x02, # number of registers to write
-            0x04,       # byte count (2 regs × 2 bytes)
- 행
+         data = [
+             0x01,       # slave ID
+             0x10,       # function code: Write Multiple Registers
+             0x00, 0x00, # start address: register 0
+             0x00, 0x02, # number of registers to write
+             0x04,       # byte count (2 regs × 2 bytes)
+             0x00, 0xD5, # command 213 = Set Speed (as percent)
+             (percent >> 8) & 0xFF, percent & 0xFF  # parameter
+         ]
+         return self.xarm_modbus_data(data)
+ 
+     def rb_init(self):
+         #로봇 Enable
+         self.call_motion_enable(8, 1)
+         #로봇팔 포지션 제어모드
+         self.call_set_mode(0)
+         #로봇 제어상태 세팅
+         self.call_set_state(0)
+         # 툴 그리퍼 초기 세팅
+         # 툴 보드레이트 세팅
+         self.xarm_set_tool_baudrate(baudrate=115200)
+         # 툴 타임아웃 세팅
+         self.xarm_set_tool_timeout(timeout=30)
+         # 그리퍼 초기화
+         self.xarm_gripper_init()
+         # 그리퍼 토크 설정(50~100)
+         self.xarm_set_motor_torque(RobotParam.grip_min_force)
+         # 그리퍼 속도 설정(100퍼센트)
+         self.xarm_set_gripper_speed_percent(100)
+         # 그리퍼 열림 상태 지령
+         self.xarm_set_finger_position(RobotParam.grip_open)
+         # 그리퍼 초기화 및 동작완료 대기
+         time.sleep(5)
+         #조인트 기반 홈자세 이동
         self.call_set_servo_angle(RobotParam.arm_home)
         self.call_set_servo_angle(RobotParam.arm_ready)
 
