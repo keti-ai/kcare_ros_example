@@ -58,7 +58,7 @@ class Elevation_example(Node):
         
     def call_elevation_command(self,milmeter,wait=True):
         request=ElevationCommand.Request()
-        request.move=meter
+        request.move=milmeter
         request.until_complete=wait
 
         future = self.service_clients['elevation_command'].call_async(request)
