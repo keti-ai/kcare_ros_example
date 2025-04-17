@@ -77,6 +77,68 @@ class Head_example(Node):
         msg=GoHomeRequest()
         self.topic_pubs['go_home'].publish(msg)
         
+    def move(self, linear_x=0.0, angular_z=0.0, duration=2.0):
+        msg = Twist()
+        msg.linear.x = linear_x
+        msg.angular.z = angular_z
+
+        start_time = self.get_clock().now().seconds_nanoseconds()[0]
+
+        
+
+        while rclpy.ok():
+            now = self.get_clock().now().seconds_nanoseconds()[0]
+            if now - start_time >= duration:
+                break
+            self.topic_pubs['cmd_vel'].publish(msg)
+            self.get_logger().info(f"Publishing: linear.x = {linear_x:.2f}, angular.z = {angular_z:.2f}")
+            time.sleep(0.1)
+
+        # 정지 명령
+        msg.linear.x = 0.0
+        msg.angular.z = 0.0
+
+        self.topic_pubs['cmd_vel'].publish(msg)
+        self.get_logger().info("Stopped.")
+
+    def publish_goal_pose(self,point_x,point_y,target_yaw):
+        goal = PoseStamped()
+        goal.header.frame_id = "map"  # 또는 "odom" 등 사용 중인 좌표계에 따라 다름
+        goal.header.stamp = self.get_clock().now().to_msg()
+
+        # 목표 위치 설정 (예: x=2.0, y=3.0)
+        goal.pose.position.x = point_x
+        goal.pose.position.y = point_y
+        goal.pose.position.z = 0.0
+
+        # 방향 (yaw = 90도 = pi/2 rad)
+        yaw = math.pi / 2
+        goal.pose.orientation.z = math.sin(yaw / 2.0)
+        goal.pose.orientation.w = math.cos(yaw / 2.0)
+
+        self.publisher_.publish(goal)
+        self.get_logger().info(f"📍 Goal published to (x={goal.pose.position.x}, y={goal.pose.position.y}, yaw={yaw:.2f})")
+
+
+    def publish_set_pose(self):
+        pose_msg = Pose()
+
+        # 위치 설정
+        pose_msg.position = Point(x=1.0, y=2.0, z=0.0)
+
+        # 방향 설정 (yaw = 90도 = pi/2 rad)
+        yaw = math.pi / 2
+        pose_msg.orientation = Quaternion(
+            x=0.0,
+            y=0.0,
+            z=math.sin(yaw / 2.0),
+            w=math.cos(yaw / 2.0)
+        )
+
+        self.publisher_.publish(pose_msg)
+        self.get_logger().info(f"📍 Set pose published: x=1.0, y=2.0, yaw={yaw:.2f} rad")
+
+
     def task(self):
         self.robot_homing()
 
