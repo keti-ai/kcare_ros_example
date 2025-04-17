@@ -49,6 +49,7 @@ class Xarm_example(Node):
             self.service_clients[service_tag] = self.create_client(service_type, service_name)
             self.get_logger().info(f"Service Client created: {service_tag} -> {service_name}")
 
+        # 로봇 토픽 구독독
         TOPIC_SUBS = {
             'robot_pose': ('/xarm/robot_states', RobotMsg,self.robot_pose_callback),
         }
@@ -63,7 +64,7 @@ class Xarm_example(Node):
        
         
     def robot_pose_callback(self, msg):
-        # 로봇팔 상태, 조인트 및 좌표 토픽 콜백  
+        # 로봇팔 제어상태, 모드, 에러코드, 각도, position값값  
         self.get_logger().info(f'Robot State: "%s"' % str(msg.state))
         self.get_logger().info(f'Robot Mode: "%s"' % str(msg.mode))
         self.get_logger().info(f'Robot Error: "%s"' % str(msg.err))
@@ -361,43 +362,27 @@ class Xarm_example(Node):
             0x00, 0x00, # start address: register 0
             0x00, 0x02, # number of registers to write
             0x04,       # byte count (2 regs × 2 bytes)
-            0x00, 0xD5, # command 213 = Set Speed (as percent)
-            (percent >> 8) & 0xFF, percent & 0xFF  # parameter
-        ]
-        return self.xarm_modbus_data(data)
-
-    def rb_init(self):
-        # ROS Spin wait
-        #로봇 전원 On
-        self.call_motion_enable(8, 1)
-        #로봇팔 포지션 제어모드
-        self.call_set_mode(0)
-        #로봇 스테이트 셋
-        self.call_set_state(0)
-        # Gripper Init
-        self.xarm_set_tool_baudrate(baudrate=115200)
-        self.xarm_set_tool_timeout(timeout=30)
-        self.xarm_gripper_init()
-        self.xarm_set_motor_torque(RobotParam.grip_min_force)
-        self.xarm_set_gripper_speed_percent(100)
-        self.xarm_set_finger_position(RobotParam.grip_open)
-        time.sleep(5)
-        #조인트 기반 홈자세 이동
+ 행
         self.call_set_servo_angle(RobotParam.arm_home)
         self.call_set_servo_angle(RobotParam.arm_ready)
-        
-        self.call_set_relative_robot_pose(rdz=math.radians(-30.0))
-        
-        self.call_set_relative_tool_pose(dz=50.0)
-        
-        self.xarm_set_finger_position(RobotParam.grip_close)
-        time.sleep(3)
-        self.call_set_relative_tool_pose(dx=50.0)
-        
-        self.call_set_servo_angle(RobotParam.arm_ready)
 
-        self.xarm_set_finger_position(RobotParam.grip_open)
+        # Base좌표계 기준 Z축으로 -30도 회전
+        self.call_set_relative_robot_pose(rdz=math.radians(-30.0))
+        # Tool 좌표계 기준 Z축으로 50mm 이동
+        self.call_set_relative_tool_pose(dz=50.0)
+        # 그리퍼 툴 닫기
+        self.xarm_set_finger_position(RobotParam.grip_close)
+        # 그리퍼 대기
         time.sleep(3)
+        # Tool 좌표계 기준 X축 50mm 이동
+        self.call_set_relative_tool_pose(dx=50.0)
+        # 조인트 좌표계 준비자세 이동. 이동완료 대기없이 다음 동작 곧바로 실행
+        self.call_set_servo_angle(RobotParam.arm_ready, wait=False)
+        # 그리퍼 열기
+        self.xarm_set_finger_position(RobotParam.grip_open)
+        # 그리퍼 대기
+        time.sleep(3)
+        # 조인트좌표계 홈자세 이동
         self.call_set_servo_angle(RobotParam.arm_home)
         
 
