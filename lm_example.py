@@ -56,7 +56,7 @@ class Elevation_example(Node):
         self.get_logger().info(f"lm_pose callback: {self.lm_pose}")
         
         
-    def call_elevation_command(self,meter,wait=True):
+    def call_elevation_command(self,milmeter,wait=True):
         request=ElevationCommand.Request()
         request.move=meter
         request.until_complete=wait
