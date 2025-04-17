@@ -53,7 +53,6 @@ class Head_example(Node):
         self.head_state=[msg.current_rz,msg.current_ry]
         self.get_logger().info(f"head_pose callback: {self.head_state}")
         
-        
     def call_head_command(self,head_pose,wait=True):
         request=HeadPoseCommand.Request()
         request.rz = head_pose[0]
@@ -77,20 +76,13 @@ class Head_example(Node):
             self.get_logger().error('Failed to call service /gripper/command')
             
     def rb_init(self):
-        
+        # Head 지령 Z축으로 20도. 이동 완료시 다음코드 실행
         self.call_head_command([0.0, 20.0])
-        
-        
+        # Head 지령 Z축 20도, Y축 20도. wait false의 경우 완료대기없이 바로 다음 코드 실행
         self.call_head_command([20.0,20.0],wait=False)
-        
         time.sleep(2)
-        
+        # Head 지령 Z축 -40도
         self.call_head_command([0.0, -40.0])
-        
-
-        
-
-
 
 def main(args=None):
     rclpy.init(args=args)
