@@ -3,8 +3,8 @@ from rclpy.node import Node
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 
-from slamware_ros_sdk.msg import GoHomeRequest, AddLineRequest, ClearMapRequest, RemoveLineRequest, Line2DFlt32Array
-from geometry_msgs.msg import Twist, PoseStamped, Pose
+from slamware_ros_sdk.msg import GoHomeRequest, AddLineRequest, ClearMapRequest, RemoveLineRequest, Line2DFlt32Array, ClearLinesRequest
+from geometry_msgs.msg import Twist, PoseStamped, Pose, Point, Quaternion
 
 
 import time, math
@@ -33,6 +33,7 @@ class Head_example(Node):
             'go_home':('/slamware_ros_sdk_server_node/go_home',GoHomeRequest),
             'add_line':('/slamware_ros_sdk_server_node/add_line',AddLineRequest),
             'remove_line':('/slamware_ros_sdk_server_node/remove_line',RemoveLineRequest),
+            'clear_lines':('/slamware_ros_sdk_server_node/clear_lines',ClearLinesRequest),
             'clear_map':('/slamware_ros_sdk_server_node/clear_map',ClearMapRequest),
         }
         
@@ -56,7 +57,6 @@ class Head_example(Node):
         qz = msg.pose.orientation.z
         qw = msg.pose.orientation.w
 
-
         # 로그 출력 (또는 변수 저장)
         #self.get_logger().info(f"[Robot Pose] Position: x={x:.2f}, y={y:.2f}, z={z:.2f} | qx={qx:.2f} qy={qy:.2f}, qz={qz:.2f}, qw={qw:.2f}")
         
@@ -77,14 +77,20 @@ class Head_example(Node):
         msg=GoHomeRequest()
         self.topic_pubs['go_home'].publish(msg)
         
+    def clear_map(self):
+        msg=ClearMapRequest()
+        self.topic_pubs['clear_map'].publish(msg)
+       
+    def clear_lines(self):
+        msg=ClearLinesRequest()
+        self.topic_pubs['clear_lines'].publish(msg)
+        
     def move(self, linear_x=0.0, angular_z=0.0, duration=2.0):
         msg = Twist()
         msg.linear.x = linear_x
         msg.angular.z = angular_z
 
         start_time = self.get_clock().now().seconds_nanoseconds()[0]
-
-        
 
         while rclpy.ok():
             now = self.get_clock().now().seconds_nanoseconds()[0]
@@ -101,46 +107,82 @@ class Head_example(Node):
         self.topic_pubs['cmd_vel'].publish(msg)
         self.get_logger().info("Stopped.")
 
-    def publish_goal_pose(self,point_x,point_y,target_yaw):
+    def publish_goal_pose(self, point_x, point_y, target_yaw):
         goal = PoseStamped()
-        goal.header.frame_id = "map"  # 또는 "odom" 등 사용 중인 좌표계에 따라 다름
+        goal.header.frame_id = ""  # 또는 사용 중인 좌표계 ("odom" 등)
         goal.header.stamp = self.get_clock().now().to_msg()
 
-        # 목표 위치 설정 (예: x=2.0, y=3.0)
+        # 위치 설정
         goal.pose.position.x = point_x
         goal.pose.position.y = point_y
         goal.pose.position.z = 0.0
 
-        # 방향 (yaw = 90도 = pi/2 rad)
-        yaw = math.pi / 2
-        goal.pose.orientation.z = math.sin(yaw / 2.0)
-        goal.pose.orientation.w = math.cos(yaw / 2.0)
+        # 방향 설정 (target_yaw 값을 사용)
+        # 쿼터니언 계산
+        goal.pose.orientation.z = math.sin(target_yaw / 2.0)
+        goal.pose.orientation.w = math.cos(target_yaw / 2.0)
+        goal.pose.orientation.x = 0.0
+        goal.pose.orientation.y = 0.0
 
-        self.publisher_.publish(goal)
-        self.get_logger().info(f"📍 Goal published to (x={goal.pose.position.x}, y={goal.pose.position.y}, yaw={yaw:.2f})")
+        # 퍼블리시
+        self.topic_pubs['goal_pose'].publish(goal)
+        self.get_logger().info(
+            f"📍 Goal published to (x={goal.pose.position.x:.2f}, y={goal.pose.position.y:.2f}, yaw={target_yaw:.2f} rad)"
+        )
 
-
-    def publish_set_pose(self):
+    def publish_set_pose(self,orin_x,orin_y,target_yaw):
         pose_msg = Pose()
 
         # 위치 설정
-        pose_msg.position = Point(x=1.0, y=2.0, z=0.0)
+        pose_msg.position = Point(x=orin_x, y=orin_y, z=0.0)
 
         # 방향 설정 (yaw = 90도 = pi/2 rad)
-        yaw = math.pi / 2
         pose_msg.orientation = Quaternion(
             x=0.0,
             y=0.0,
-            z=math.sin(yaw / 2.0),
-            w=math.cos(yaw / 2.0)
+            z=math.sin(target_yaw / 2.0),
+            w=math.cos(target_yaw / 2.0)
         )
 
-        self.publisher_.publish(pose_msg)
-        self.get_logger().info(f"📍 Set pose published: x=1.0, y=2.0, yaw={yaw:.2f} rad")
+        self.topic_pubs['set_pose'].publish(pose_msg)
+        self.get_logger().info(f"📍 Set pose published: x={orin_x} y={orin_y}, yaw={target_yaw:.2f} rad")
 
+    def add_virtual_line(self,id,start:list,end:list):
+        msg=AddLineRequest()
+        msg.usage.usage=0
+        msg.line.id=id
+        msg.line.start.x=start[0]
+        msg.line.start.y=start[1]
+        msg.line.end.x=end[0]
+        msg.line.end.y=end[1]
+        
+        self.topic_pubs['add_line'].publish(msg)
+        self.get_logger().info(f"Add Virtual Line ID : {id}, Start : {start}, End : {end}")
+
+    def remove_line(self,id):
+        msg=RemoveLineRequest()
+        msg.usage.usage=0
+        msg.id=id
+        self.topic_pubs['remove_line'].publish(msg)
 
     def task(self):
+        # Map data clear
+        #self.clear_map()
+        # Robot go to homing
         self.robot_homing()
+        # Robot manual moving
+        #self.move(0.5,0.0,duration=1.5)
+        # Robot Pose Command
+        #self.publish_goal_pose(1.0,0.0,0.0)
+        # Robot Set Pose
+        #self.publish_set_pose(0.0,0.0,0.0)
+        # Add virtual Line
+        #self.add_virtual_line(0,[0.5,-0.5],[0.5,0.5])
+        # Delete all virtual Line
+        #self.clear_lines()
+
+        
+        
 
 def main(args=None):
     rclpy.init(args=args)
